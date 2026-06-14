@@ -2,11 +2,41 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>My Site</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Cool Site</title>
+    <style>
+        /* 웹사이트 전체 느낌 꾸미기 */
+        body {
+            background-color: #1a1a1a; /* 힙한 다크모드 배경색 */
+            color: #ffffff;            /* 글자색을 하얗게 */
+            font-family: 'Malgun Gothic', sans-serif; /* 깔끔한 글꼴 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;             /* 화면 정중앙에 정렬 */
+            margin: 0;
+        }
+
+        /* 큰 제목 꾸미기 */
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, #ff7e5f, #feb47b); /* 그라데이션 글자색 */
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* 작은 글씨 꾸미기 */
+        p {
+            font-size: 1.5rem;
+            color: #a0a0a0;
+            letter-spacing: 2px;
+        }
+    </style>
 </head>
 <body>
     <h1>드디어 성공했습니다! 🎉</h1>
     <p>Makes me king</p>
 </body>
 </html>
-
