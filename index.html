@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cretiz Brawl Prototype</title>
+    <style>
+        body {
+            margin: 0; padding: 0; background-color: #111;
+            overflow: hidden; font-family: sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; color: white;
+        }
+        #gameCanvas {
+            border: 3px solid #00ff88; background-color: #1a1a1a;
+            max-width: 100%; max-height: 80vh;
+        }
+        .info { position: absolute; top: 10px; font-size: 16px; color: #00ff88; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <div class="info">🕹️ Cretiz 난투 프로토타입<br>화면을 터치/클릭하여 이동하고 공격하세요!</div>
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 플레이어 설정
+        const player = {
+            x: 400, y: 250, radius: 20, color: '#00ff88', speed: 4,
+            targetX: 400, targetY: 250
+        };
+
+        const bullets = [];
+        const enemies = [
+            { x: 150, y: 150, radius: 25, color: '#ff3333', hp: 3 },
+            { x: 650, y: 150, radius: 25, color: '#ff3333', hp: 3 }
+        ];
+
+        // 입력 처리
+        function handleInput(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = (clientX - rect.left) * (canvas.width / rect.width);
+            const canvasY = (clientY - rect.top) * (canvas.height / rect.height);
+
+            player.targetX = canvasX;
+            player.targetY = canvasY;
+
+            const angle = Math.atan2(canvasY - player.y, canvasX - player.x);
+            bullets.push({
+                x: player.x, y: player.y,
+                dx: Math.cos(angle) * 8, dy: Math.sin(angle) * 8
+            });
+        }
+
+        window.addEventListener('mousedown', (e) => handleInput(e.clientX, e.clientY));
+        window.addEventListener('touchstart', (e) => {
+            if(e.touches.length > 0) handleInput(e.touches[0].clientX, e.touches[0].clientY);
+        });
+
+        // 게임 루프
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 플레이어 이동
+            const dx = player.targetX - player.x;
+            const dy = player.targetY - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > player.speed) {
+                player.x += (dx / dist) * player.speed;
+                player.y += (dy / dist) * player.speed;
+            }
+
+            // 플레이어 그리기
+            ctx.fillStyle = player.color;
+            ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2); ctx.fill();
+
+            // 적 그리기
+            enemies.forEach(e => {
+                if (e.hp <= 0) return;
+                ctx.fillStyle = e.color;
+                ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2); ctx.fill();
+            });
+
+            // 총알 처리
+            bullets.forEach((b, i) => {
+                b.x += b.dx; b.y += b.dy;
+                ctx.fillStyle = '#ffff00';
+                ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, Math.PI * 2); ctx.fill();
+
+                enemies.forEach(e => {
+                    const d = Math.hypot(b.x - e.x, b.y - e.y);
+                    if (d < e.radius + 5 && e.hp > 0) { e.hp--; bullets.splice(i, 1); }
+                });
+            });
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
+
