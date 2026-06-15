@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acid Justin's Pixel Dungeon Collector</title>
+    <style>
+        /* 🎨 CSS: 게임의 간지를 담당합니다. */
+        body {
+            background-color: #121212;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            user-select: none; /* 텍스트 선택 방지 */
+        }
+
+        h1 {
+            color: #00ff88;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.7);
+        }
+
+        #game-container {
+            border: 4px solid #00ff88;
+            background-color: #1a1a1a;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            max-width: 90%;
+        }
+
+        #pixel-coin {
+            font-size: 80px;
+            cursor: pointer;
+            transition: transform 0.1s;
+            display: inline-block;
+            margin: 20px 0;
+            filter: drop-shadow(0 0 10px #ffd700);
+        }
+
+        #pixel-coin:active {
+            transform: scale(0.9); /* 클릭했을 때 쏙 들어가는 효과 */
+        }
+
+        .stats {
+            font-size: 24px;
+            margin: 10px 0;
+        }
+
+        #gold-count {
+            color: #ffd700;
+            font-weight: bold;
+        }
+
+        #upgrade-section {
+            margin-top: 20px;
+            border-top: 2px solid #333;
+            padding-top: 15px;
+        }
+
+        .upgrade-btn {
+            background-color: #333;
+            color: #00ff88;
+            border: 2px solid #00ff88;
+            padding: 10px 20px;
+            font-size: 18px;
+            font-family: inherit;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .upgrade-btn:hover:not(:disabled) {
+            background-color: #00ff88;
+            color: black;
+        }
+
+        .upgrade-btn:disabled {
+            border-color: #555;
+            color: #555;
+            cursor: not-allowed;
+        }
+
+        .upgrade-btn:active:not(:disabled) {
+            transform: translateY(2px);
+        }
+
+        /* 💥 클릭할 때 튀어나오는 데미지 숫자 */
+        .damage-text {
+            position: absolute;
+            color: #00ff88;
+            font-weight: bold;
+            font-size: 24px;
+            animation: moveUp 0.8s ease-out;
+            pointer-events: none;
+            opacity: 1;
+        }
+
+        @keyframes moveUp {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-50px); opacity: 0; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <h1>Pixel Dungeon Collector</h1>
+        
+        <!-- 💰 메인 클릭커 아이콘 (우리가 클릭할 코인) -->
+        <div id="pixel-coin">💰</div>
+
+        <div class="stats">Gold: <span id="gold-count">0</span></div>
+        <div class="stats">Gold Per Click: <span id="gpc-count">1</span></div>
+
+        <!-- 🚀 업그레이드 구역 -->
+        <div id="upgrade-section">
+            <h3>방어구 상점</h3>
+            <p>더 좋은 장비는 한 번에 더 많은 골드를 줍니다!</p>
+            <button class="upgrade-btn" id="upgrade-btn">
+                [검 구하기] 비용: 10 Gold (Lv.<span id="level-count">1</span>)
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /* 🧠 JAVASCRIPT: 게임 로직을 담당합니다. */
+
+        // 1. 상태 변수 설정
+        let gold = localStorage.getItem('gold') ? parseInt(localStorage.getItem('gold')) : 0;
+        let goldPerClick = localStorage.getItem('goldPerClick') ? parseInt(localStorage.getItem('goldPerClick')) : 1;
+        let upgradeLevel = localStorage.getItem('upgradeLevel') ? parseInt(localStorage.getItem('upgradeLevel')) : 1;
+        let upgradeCost = 10 * Math.pow(1.5, upgradeLevel - 1); // 레벨이 올라갈수록 비용 증가
+
+        // 2. HTML 요소 가져오기
+        const goldCountDisplay = document.getElementById('gold-count');
+        const gpcCountDisplay = document.getElementById('gpc-count');
+        const levelCountDisplay = document.getElementById('level-count');
+        const upgradeBtn = document.getElementById('upgrade-btn');
+        const pixelCoin = document.getElementById('pixel-coin');
+        const gameContainer = document.getElementById('game-container');
+
+        // 3. 화면 업데이트 함수
+        function updateUI() {
+            goldCountDisplay.innerText = Math.floor(gold);
+            gpcCountDisplay.innerText = goldPerClick;
+            levelCountDisplay.innerText = upgradeLevel;
+            upgradeBtn.innerText = `[검 구하기] 비용: ${Math.floor(upgradeCost)} Gold (Lv.${upgradeLevel})`;
+            
+            // 돈이 부족하면 버튼 비활성화
+            if (gold < upgradeCost) {
+                upgradeBtn.disabled = true;
+            } else {
+                upgradeBtn.disabled = false;
+            }
+
+            // 상태 저장 (웹 브라우저 LocalStorage에)
+            localStorage.setItem('gold', gold);
+            localStorage.setItem('goldPerClick', goldPerClick);
+            localStorage.setItem('upgradeLevel', upgradeLevel);
+        }
+
+        // 4. 클릭 이벤트 (코인을 클릭했을 때)
+        pixelCoin.addEventListener('click', (e) => {
+            gold += goldPerClick;
+            
+            // 시각 효과: 클릭할 때 튀어나오는 +Gold 숫자
+            createDamageText(e.clientX, e.clientY);
+            updateUI();
+        });
+
+        // 5. 업그레이드 이벤트 (버튼을 클릭했을 때)
+        upgradeBtn.addEventListener('click', () => {
+            if (gold >= upgradeCost) {
+                gold -= upgradeCost; // 돈 지불
+                goldPerClick += 1; // 클릭당 골드 증가
+                upgradeLevel += 1; // 레벨 증가
+                upgradeCost = 10 * Math.pow(1.5, upgradeLevel - 1); // 다음 업그레이드 비용 계산
+                
+                updateUI();
+            }
+        });
+
+        // 6. 클릭 데미지 텍스트 생성 함수
+        function createDamageText(x, y) {
+            const damageText = document.createElement('div');
+            damageText.classList.add('damage-text');
+            damageText.innerText = `+${goldPerClick}`;
+            damageText.style.left = `${x}px`;
+            damageText.style.top = `${y}px`;
+
+            document.body.appendChild(damageText);
+
+            // 애니메이션 끝나면 요소 삭제 (메모리 관리)
+            setTimeout(() => {
+                damageText.remove();
+            }, 800);
+        }
+
+        // 초기 화면 업데이트
+        updateUI();
+
+    </script>
+</body>
+</html>
+
