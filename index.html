@@ -210,3 +210,288 @@
 </body>
 </html>
 
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acid Justin's Pixel Dungeon Collector</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        h1 {
+            color: #00ff88;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.7);
+            margin-bottom: 10px;
+        }
+
+        /* 📱 가로 배치를 위한 메인 레이아웃 */
+        #main-layout {
+            display: flex;
+            gap: 20px;
+            max-width: 900px;
+            width: 100%;
+            justify-content: center;
+            flex-wrap: wrap; /* 화면 작아지면 아래로 떨어지게 */
+        }
+
+        #game-container, #leaderboard-container {
+            border: 4px solid #00ff88;
+            background-color: #1a1a1a;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            flex: 1;
+            min-width: 300px;
+        }
+
+        #pixel-coin {
+            font-size: 80px;
+            cursor: pointer;
+            transition: transform 0.1s;
+            display: inline-block;
+            margin: 15px 0;
+            filter: drop-shadow(0 0 10px #ffd700);
+        }
+
+        #pixel-coin:active { transform: scale(0.9); }
+
+        .stats { font-size: 22px; margin: 8px 0; }
+        #gold-count { color: #ffd700; font-weight: bold; }
+
+        #upgrade-section {
+            margin-top: 15px;
+            border-top: 2px solid #333;
+            padding-top: 10px;
+        }
+
+        .btn {
+            background-color: #333;
+            color: #00ff88;
+            border: 2px solid #00ff88;
+            padding: 10px 15px;
+            font-size: 16px;
+            font-family: inherit;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+            margin-top: 5px;
+        }
+
+        .btn:hover:not(:disabled) { background-color: #00ff88; color: black; }
+        .btn:disabled { border-color: #555; color: #555; cursor: not-allowed; }
+
+        /* 🏆 랭킹 스타일 */
+        #leaderboard-list {
+            text-align: left;
+            margin-top: 15px;
+            padding-left: 0;
+            list-style: none;
+        }
+
+        #leaderboard-list li {
+            padding: 8px;
+            border-bottom: 1px solid #333;
+            font-size: 16px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #leaderboard-list li:nth-child(1) { color: #ffd700; font-weight: bold; } /* 1등 금색 */
+        #leaderboard-list li:nth-child(2) { color: #c0c0c0; } /* 2등 은색 */
+        #leaderboard-list li:nth-child(3) { color: #cd7f32; } /* 3등 동색 */
+
+        #name-input {
+            background: #222;
+            border: 2px solid #00ff88;
+            color: white;
+            padding: 8px;
+            border-radius: 5px;
+            font-family: inherit;
+            width: 60%;
+            text-align: center;
+        }
+
+        .damage-text {
+            position: absolute;
+            color: #00ff88;
+            font-weight: bold;
+            font-size: 24px;
+            animation: moveUp 0.8s ease-out;
+            pointer-events: none;
+        }
+
+        @keyframes moveUp {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-50px); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Pixel Dungeon Collector</h1>
+    
+    <div id="main-layout">
+        <div id="game-container">
+            <div id="pixel-coin">💰</div>
+            <div class="stats">Gold: <span id="gold-count">0</span></div>
+            <div class="stats">Gold Per Click: <span id="gpc-count">1</span></div>
+
+            <div id="upgrade-section">
+                <h3>방어구 상점</h3>
+                <button class="btn" id="upgrade-btn">[검 구하기] 비용: 10 Gold (Lv.1)</button>
+            </div>
+        </div>
+
+        <div id="leaderboard-container">
+            <h2>🏆 실시간 랭킹</h2>
+            <div id="register-zone">
+                <input type="text" id="name-input" placeholder="닉네임 입력 (최대5자)" maxlength="5">
+                <button class="btn" id="submit-score-btn" style="padding: 6px 12px; font-size: 14px;">점수 등록</button>
+            </div>
+            <ul id="leaderboard-list">
+                <li>데이터 불러오는 중...</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // 변수 설정
+        let gold = localStorage.getItem('gold') ? parseInt(localStorage.getItem('gold')) : 0;
+        let goldPerClick = localStorage.getItem('goldPerClick') ? parseInt(localStorage.getItem('goldPerClick')) : 1;
+        let upgradeLevel = localStorage.getItem('upgradeLevel') ? parseInt(localStorage.getItem('upgradeLevel')) : 1;
+        let upgradeCost = 10 * Math.pow(1.5, upgradeLevel - 1);
+
+        // 무료 오픈서버 API 주소 (중1 전용 무료 실시간 저장소)
+        const BIN_ID = "666d66ccad19ca34f87a80b0"; // 구글 가입 축하용으로 생성한 임시 공용 서버 ID
+        const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+        const API_KEY = "$2a$10$W1GvM.p3Z/P/GqYx1WwLSOzre1Uu9t3gMRE9yT7bBw7oH8Yw.9.Ea"; // 읽기/쓰기 마스터 키
+
+        const goldCountDisplay = document.getElementById('gold-count');
+        const gpcCountDisplay = document.getElementById('gpc-count');
+        const upgradeBtn = document.getElementById('upgrade-btn');
+        const pixelCoin = document.getElementById('pixel-coin');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        const nameInput = document.getElementById('name-input');
+        const submitScoreBtn = document.getElementById('submit-score-btn');
+
+        function updateUI() {
+            goldCountDisplay.innerText = Math.floor(gold);
+            gpcCountDisplay.innerText = goldPerClick;
+            upgradeBtn.innerText = `[검 구하기] 비용: ${Math.floor(upgradeCost)} Gold (Lv.${upgradeLevel})`;
+            upgradeBtn.disabled = gold < upgradeCost;
+
+            localStorage.setItem('gold', gold);
+            localStorage.setItem('goldPerClick', goldPerClick);
+            localStorage.setItem('upgradeLevel', upgradeLevel);
+        }
+
+        // 클릭 이벤트
+        pixelCoin.addEventListener('click', (e) => {
+            gold += goldPerClick;
+            createDamageText(e.clientX, e.clientY);
+            updateUI();
+        });
+
+        // 업그레이드
+        upgradeBtn.addEventListener('click', () => {
+            if (gold >= upgradeCost) {
+                gold -= upgradeCost;
+                goldPerClick += 1;
+                upgradeLevel += 1;
+                upgradeCost = 10 * Math.pow(1.5, upgradeLevel - 1);
+                updateUI();
+            }
+        });
+
+        function createDamageText(x, y) {
+            const damageText = document.createElement('div');
+            damageText.classList.add('damage-text');
+            damageText.innerText = `+${goldPerClick}`;
+            damageText.style.left = `${x}px`;
+            damageText.style.top = `${y}px`;
+            document.body.appendChild(damageText);
+            setTimeout(() => damageText.remove(), 800);
+        }
+
+        // 🌐 [랭킹 시스템 전용 서버 로직]
+        // 1. 서버에서 현재 랭킹 리스트 가져오기
+        async function loadLeaderboard() {
+            try {
+                const res = await fetch(API_URL, {
+                    headers: { "X-Master-Key": API_KEY }
+                });
+                const data = await res.json();
+                const scores = data.record.scores || [];
+                
+                // 골드 높은 순서대로 정렬
+                scores.sort((a, b) => b.score - a.score);
+
+                // 랭킹 그리기 (최대 7명만)
+                leaderboardList.innerHTML = '';
+                scores.slice(0, 7).forEach((player, index) => {
+                    leaderboardList.innerHTML += `<li><span>${index + 1}등. ${player.name}</span> <span>${player.score} G</span></li>`;
+                });
+            } catch (err) {
+                leaderboardList.innerHTML = '<li>랭킹 로드 실패 😢</li>';
+            }
+        }
+
+        // 2. 내 점수 서버에 등록하기
+        submitScoreBtn.addEventListener('click', async () => {
+            const name = nameInput.value.trim();
+            if (!name) return alert("닉네임을 입력해줘!");
+
+            submitScoreBtn.disabled = true;
+            submitScoreBtn.innerText = "등록중..";
+
+            try {
+                // 기존 데이터 먼저 긁어오기
+                const res = await fetch(API_URL, { headers: { "X-Master-Key": API_KEY } });
+                const currentData = await res.json();
+                let scores = currentData.record.scores || [];
+
+                // 내 기록 추가
+                scores.push({ name: name, score: Math.floor(gold) });
+
+                // 서버에 새로 덮어쓰기 저장
+                await fetch(API_URL, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': API_KEY
+                    },
+                    body: JSON.stringify({ scores: scores })
+                });
+
+                alert("랭킹 등록 완료! 🔥");
+                nameInput.value = '';
+                loadLeaderboard(); // 랭킹 새로고침
+            } catch (err) {
+                alert("등록 실패.. 네트워크를 확인해줘!");
+            } finally {
+                submitScoreBtn.disabled = false;
+                submitScoreBtn.innerText = "점수 등록";
+            }
+        });
+
+        // 초기 실행
+        updateUI();
+        loadLeaderboard();
+    </script>
+</body>
+</html>
