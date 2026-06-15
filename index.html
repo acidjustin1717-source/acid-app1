@@ -283,3 +283,183 @@
     </script>
 </body>
 </html>
+    <style>
+        #main-layout {
+            display: flex;
+            gap: 20px;
+            max-width: 900px;
+            width: 100%;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        #game-container, #leaderboard-container {
+            border: 4px solid #00ff88;
+            background-color: #1a1a1a;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            flex: 1;
+            min-width: 300px;
+        }
+        #leaderboard-list {
+            text-align: left;
+            margin-top: 15px;
+            padding-left: 0;
+            list-style: none;
+        }
+        #leaderboard-list li {
+            padding: 8px;
+            border-bottom: 1px solid #333;
+            font-size: 16px;
+            display: flex;
+            justify-content: space-between;
+        }
+        #leaderboard-list li:nth-child(1) { color: #ffd700; font-weight: bold; }
+        #leaderboard-list li:nth-child(2) { color: #c0c0c0; }
+        #leaderboard-list li:nth-child(3) { color: #cd7f32; }
+        #name-input {
+            background: #222; border: 2px solid #00ff88; color: white;
+            padding: 8px; border-radius: 5px; font-family: inherit; width: 50%; text-align: center;
+        }
+        .btn {
+            background-color: #333; color: #00ff88; border: 2px solid #00ff88;
+            padding: 8px 12px; font-size: 15px; font-family: inherit; cursor: pointer; border-radius: 8px; transition: all 0.2s;
+        }
+        .btn:hover:not(:disabled) { background-color: #00ff88; color: black; }
+        .btn:disabled { border-color: #555; color: #555; cursor: not-allowed; }
+    </style>
+
+    <script>
+        // 1. 기존 컨테이너를 감쌀 메인 레이아웃 박스 생성
+        const mainLayout = document.createElement('div');
+        mainLayout.id = 'main-layout';
+        
+        // 2. 원래 있던 게임 창을 레이아웃 안으로 이사 보내기
+        const originContainer = document.getElementById('game-container');
+        originContainer.parentNode.insertBefore(mainLayout, originContainer);
+        mainLayout.appendChild(originContainer);
+
+        // 3. 게임 창 내부에 [자동 광부] 상점 UI 추가하기
+        const autoUpgradeZone = document.createElement('div');
+        autoUpgradeZone.style.marginTop = "15px";
+        autoUpgradeZone.style.borderTop = "2px solid #333";
+        autoUpgradeZone.style.paddingTop = "10px";
+        autoUpgradeZone.innerHTML = `
+            <h3>자동 광부 훈련소</h3>
+            <div class="stats" style="font-size:18px;">초당 자동 골드: <span id="gps-count" style="color:#00ff88;">0</span> G</div>
+            <button class="btn" id="auto-btn">[광부 고용] 비용: 50 Gold (Lv.0)</button>
+        `;
+        originContainer.appendChild(autoUpgradeZone);
+
+        // 4. 오른쪽에 붙을 [실시간 랭킹창] UI 추가하기
+        const leaderboardContainer = document.createElement('div');
+        leaderboardContainer.id = 'leaderboard-container';
+        leaderboardContainer.innerHTML = `
+            <h2>🏆 실시간 랭킹</h2>
+            <div id="register-zone">
+                <input type="text" id="name-input" placeholder="닉네임 (최대5자)" maxlength="5">
+                <button class="btn" id="submit-score-btn">점수 등록</button>
+            </div>
+            <ul id="leaderboard-list"><li>데이터 동시성 연결 중...</li></ul>
+        `;
+        mainLayout.appendChild(leaderboardContainer);
+
+        // 🌐 실시간 서버 세팅 (JSONBin 무료 오픈 서버)
+        const BIN_ID = "666d66ccad19ca34f87a80b0";
+        const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+        const API_KEY = "$2a$10$W1GvM.p3Z/P/GqYx1WwLSOzre1Uu9t3gMRE9yT7bBw7oH8Yw.9.Ea";
+
+        // 변수 및 데이터 확장 연동
+        let goldPerSecond = localStorage.getItem('goldPerSecond') ? parseInt(localStorage.getItem('goldPerSecond')) : 0;
+        let autoLevel = localStorage.getItem('autoLevel') ? parseInt(localStorage.getItem('autoLevel')) : 0;
+        let autoCost = 50 * Math.pow(1.8, autoLevel);
+
+        const autoBtn = document.getElementById('auto-btn');
+        const gpsCountDisplay = document.getElementById('gps-count');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        const nameInput = document.getElementById('name-input');
+        const submitScoreBtn = document.getElementById('submit-score-btn');
+
+        // 기존 UI 업데이트 함수에 자동광부 로직 수동 추가 연결
+        const originUpdateUI = updateUI;
+        updateUI = function() {
+            originUpdateUI(); // 기존 기능 먼저 실행
+            
+            // 신규 기능 UI 업데이트
+            gpsCountDisplay.innerText = goldPerSecond;
+            autoBtn.innerText = `[광부 고용] 비용: ${Math.floor(autoCost)} Gold (Lv.${autoLevel})`;
+            autoBtn.disabled = gold < autoCost;
+
+            localStorage.setItem('goldPerSecond', goldPerSecond);
+            localStorage.setItem('autoLevel', autoLevel);
+        }
+
+        // ⛏️ 자동 광부 구매 이벤트
+        autoBtn.addEventListener('click', () => {
+            if (gold >= autoCost) {
+                gold -= autoCost;
+                goldPerSecond += 1;
+                autoLevel += 1;
+                autoCost = 50 * Math.pow(1.8, autoLevel);
+                updateUI();
+            }
+        });
+
+        // ⏱️ 1초마다 자동으로 돈이 차오르는 타이머 시스템 루프
+        setInterval(() => {
+            if (goldPerSecond > 0) {
+                gold += goldPerSecond;
+                updateUI();
+            }
+        }, 1000);
+
+        // 🏆 랭킹 서버 데이터 로드
+        async function loadLeaderboard() {
+            try {
+                const res = await fetch(API_URL, { headers: { "X-Master-Key": API_KEY } });
+                const data = await res.json();
+                const scores = data.record.scores || [];
+                scores.sort((a, b) => b.score - a.score);
+                leaderboardList.innerHTML = '';
+                scores.slice(0, 7).forEach((player, index) => {
+                    leaderboardList.innerHTML += `<li><span>${index + 1}등. ${player.name}</span> <span>${player.score} G</span></li>`;
+                });
+            } catch (err) {
+                leaderboardList.innerHTML = '<li>랭킹 연결 일시 실패 😢</li>';
+            }
+        }
+
+        // 🏆 점수 등록하기 클릭
+        submitScoreBtn.addEventListener('click', async () => {
+            const name = nameInput.value.trim();
+            if (!name) return alert("닉네임을 입력해줘!");
+            submitScoreBtn.disabled = true;
+            submitScoreBtn.innerText = "업로드..";
+
+            try {
+                const res = await fetch(API_URL, { headers: { "X-Master-Key": API_KEY } });
+                const currentData = await res.json();
+                let scores = currentData.record.scores || [];
+                scores.push({ name: name, score: Math.floor(gold) });
+
+                await fetch(API_URL, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
+                    body: JSON.stringify({ scores: scores })
+                });
+                alert("랭킹 등록 완료! 🔥");
+                nameInput.value = '';
+                loadLeaderboard();
+            } catch (err) {
+                alert("서버 통신 실패!");
+            } finally {
+                submitScoreBtn.disabled = false;
+                submitScoreBtn.innerText = "점수 등록";
+            }
+        });
+
+        // 시작 시 실행
+        setTimeout(() => { updateUI(); loadLeaderboard(); }, 100);
+    </script>
